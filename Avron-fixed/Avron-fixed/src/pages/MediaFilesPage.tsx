@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, RefreshCw, FileImage, FileVideo, FileText, File, ExternalLink, Trash2 } from 'lucide-react';
+import { Plus, Search, RefreshCw, FileImage, FileVideoCamera as FileVideo, FileText, File, ExternalLink, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -42,21 +42,29 @@ export function MediaFilesPage() {
   const [typeFilter, setTypeFilter] = useState<MediaFileType | ''>('');
   const [uploadOpen, setUploadOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MediaFile | null>(null);
 
   const [form, setForm] = useState({
     entity_type: 'Patient', entity_id: '', file_type: 'image' as MediaFileType,
     file_name: '', file_url: '', description: '',
   });
 
-  const fetch = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('media_files').select('*')
-      .order('created_at', { ascending: false }).limit(100);
-    setFiles(data ?? []);
-    setLoading(false);
-  }, []);
+    try {
+      const { data, error } = await supabase.from('media_files').select('*')
+        .order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      setFiles(data ?? []);
+    } catch (err) {
+      console.error('MediaFilesPage: Failed to fetch media files', err);
+      addToast({ type: 'error', title: 'Failed to load', message: 'Could not load media files.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleUpload = async () => {
     if (!form.file_name.trim() || !form.file_url.trim()) {
@@ -64,27 +72,41 @@ export function MediaFilesPage() {
       return;
     }
     setSaving(true);
-    await supabase.from('media_files').insert({
-      entity_type: form.entity_type,
-      entity_id: form.entity_id.trim() || null,
-      file_type: form.file_type,
-      file_name: form.file_name.trim(),
-      file_url: form.file_url.trim(),
-      description: form.description.trim() || null,
-      uploaded_by: profile?.id,
-    });
-    addToast({ type: 'success', title: 'File uploaded', message: form.file_name });
-    setSaving(false);
-    setUploadOpen(false);
-    setForm({ entity_type: 'Patient', entity_id: '', file_type: 'image', file_name: '', file_url: '', description: '' });
-    fetch();
+    try {
+      const { error } = await supabase.from('media_files').insert({
+        entity_type: form.entity_type,
+        entity_id: form.entity_id.trim() || null,
+        file_type: form.file_type,
+        file_name: form.file_name.trim(),
+        file_url: form.file_url.trim(),
+        description: form.description.trim() || null,
+        uploaded_by: profile?.id,
+      });
+      if (error) throw error;
+      addToast({ type: 'success', title: 'File uploaded', message: form.file_name });
+      setUploadOpen(false);
+      setForm({ entity_type: 'Patient', entity_id: '', file_type: 'image', file_name: '', file_url: '', description: '' });
+      fetchData();
+    } catch (err) {
+      console.error('MediaFilesPage: Failed to upload file', err);
+      addToast({ type: 'error', title: 'Failed to upload', message: 'Could not add media file.' });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = async (f: MediaFile) => {
-    if (!confirm(`Delete "${f.file_name}"?`)) return;
-    await supabase.from('media_files').delete().eq('id', f.id);
-    addToast({ type: 'warning', title: 'File deleted', message: f.file_name });
-    fetch();
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const { error } = await supabase.from('media_files').delete().eq('id', deleteTarget.id);
+      if (error) throw error;
+      addToast({ type: 'warning', title: 'File deleted', message: deleteTarget.file_name });
+      setDeleteTarget(null);
+      fetchData();
+    } catch (err) {
+      console.error('MediaFilesPage: Failed to delete file', err);
+      addToast({ type: 'error', title: 'Failed to delete', message: 'Could not delete media file.' });
+    }
   };
 
   const formatSize = (bytes: number | null) => {
@@ -159,7 +181,7 @@ export function MediaFilesPage() {
                     <a href={f.file_url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                       <ExternalLink size={14} />
                     </a>
-                    <button onClick={() => handleDelete(f)} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500">
+                    <button onClick={() => setDeleteTarget(f)} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -215,6 +237,17 @@ export function MediaFilesPage() {
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
             <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={2} placeholder="Optional description..." className="input-field resize-none" />
           </div>
+        </div>
+      </Modal>
+
+      {/* Delete confirmation modal */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Media File" size="sm"
+        footer={<><button onClick={() => setDeleteTarget(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Are you sure you want to delete <strong className="text-slate-900 dark:text-white">{deleteTarget?.file_name}</strong>? This action cannot be undone.
+          </p>
         </div>
       </Modal>
     </div>

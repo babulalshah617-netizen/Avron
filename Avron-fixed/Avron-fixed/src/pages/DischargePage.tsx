@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, CheckCircle2, Clock, Search, RefreshCw, Activity, ArrowRight } from 'lucide-react';
+import { Plus, CircleCheck as CheckCircle2, Clock, Search, RefreshCw, Activity, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -55,50 +55,66 @@ export function DischargePage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('discharge_requests').select('*')
-      .order('created_at', { ascending: false }).limit(100);
-    setDischarges(data ?? []);
-    setLoading(false);
-  }, []);
+    try {
+      const { data, error } = await supabase
+        .from('discharge_requests').select('*')
+        .order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      setDischarges(data ?? []);
+    } catch (err) {
+      console.error('DischargePage: Failed to fetch data', err);
+      addToast({ type: 'error', title: 'Failed to load', message: 'Could not load discharge requests.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleCreate = async () => {
     if (!form.patient_name.trim()) { addToast({ type: 'error', title: 'Required', message: 'Patient name required.' }); return; }
     setSaving(true);
-    const { error } = await supabase.from('discharge_requests').insert({
-      patient_name: form.patient_name.trim(),
-      patient_uhid: form.patient_uhid.trim() || null,
-      diagnosis: form.diagnosis.trim() || null,
-      nursing_notes: form.nursing_notes.trim() || null,
-      total_bill: form.total_bill ? parseFloat(form.total_bill) : 0,
-      initiated_by: profile?.id,
-    });
-    setSaving(false);
-    if (!error) {
+    try {
+      const { error } = await supabase.from('discharge_requests').insert({
+        patient_name: form.patient_name.trim(),
+        patient_uhid: form.patient_uhid.trim() || null,
+        diagnosis: form.diagnosis.trim() || null,
+        nursing_notes: form.nursing_notes.trim() || null,
+        total_bill: form.total_bill ? parseFloat(form.total_bill) : 0,
+        initiated_by: profile?.id,
+      });
+      if (error) throw error;
       addToast({ type: 'success', title: 'Discharge initiated', message: `Discharge for ${form.patient_name} started.` });
       setCreate(false);
       setForm({ patient_name: '', patient_uhid: '', diagnosis: '', nursing_notes: '', total_bill: '' });
-    } else {
-      addToast({ type: 'error', title: 'Error', message: error.message });
+    } catch (err) {
+      console.error('DischargePage: Failed to create discharge', err);
+      addToast({ type: 'error', title: 'Error', message: 'Failed to initiate discharge.' });
+    } finally {
+      setSaving(false);
+      fetchData();
     }
-    fetchData();
   };
 
   const advance = async (dr: DischargeRequest, noteKey?: string, noteValue?: string) => {
     const next = NEXT_STATUS[dr.status];
     if (!next) return;
-    const now = new Date().toISOString();
-    const updates: Record<string, unknown> = { status: next };
-    if (next === 'pharmacy_cleared') { updates.pharmacy_by = profile?.id; updates.pharmacy_cleared_at = now; }
-    if (next === 'billing_cleared')  { updates.billing_by  = profile?.id; updates.billing_cleared_at  = now; }
-    if (next === 'completed')        { updates.completed_at = now; }
-    if (noteKey && noteValue) updates[noteKey] = noteValue;
-    await supabase.from('discharge_requests').update(updates).eq('id', dr.id);
-    addToast({ type: 'success', title: 'Updated', message: `Discharge → ${STATUS_STEPS.find(s => s.key === next)?.label}` });
-    setDetail(null);
-    fetchData();
+    try {
+      const now = new Date().toISOString();
+      const updates: Record<string, unknown> = { status: next };
+      if (next === 'pharmacy_cleared') { updates.pharmacy_by = profile?.id; updates.pharmacy_cleared_at = now; }
+      if (next === 'billing_cleared')  { updates.billing_by  = profile?.id; updates.billing_cleared_at  = now; }
+      if (next === 'completed')        { updates.completed_at = now; }
+      if (noteKey && noteValue) updates[noteKey] = noteValue;
+      const { error } = await supabase.from('discharge_requests').update(updates).eq('id', dr.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Updated', message: `Discharge → ${STATUS_STEPS.find(s => s.key === next)?.label}` });
+      setDetail(null);
+      fetchData();
+    } catch (err) {
+      console.error('DischargePage: Failed to advance status', err);
+      addToast({ type: 'error', title: 'Failed to update', message: 'Could not update discharge status.' });
+    }
   };
 
   const filtered = discharges.filter(d => {

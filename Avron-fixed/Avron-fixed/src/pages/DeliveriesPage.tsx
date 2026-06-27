@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, RefreshCw, Package, MapPin, User, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Search, RefreshCw, Package, MapPin, User, CircleCheck as CheckCircle2, Circle as XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -34,24 +34,36 @@ export function DeliveriesPage() {
   const [assignOpen, setAssignOpen] = useState<Delivery | null>(null);
   const [saving, setSaving] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState('');
+  const [confirmDeliver, setConfirmDeliver] = useState<Delivery | null>(null);
+  const [receiverName, setReceiverName] = useState('');
+  const [confirmFailed, setConfirmFailed] = useState<Delivery | null>(null);
+  const [failedReason, setFailedReason] = useState('');
 
   const [form, setForm] = useState({
     entity_type: 'General', entity_id: '', title: '', description: '',
     from_location: 'Ground Floor Reception', to_location: '',
   });
 
-  const fetch = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    const [delRes, staffRes] = await Promise.all([
-      supabase.from('deliveries').select('*, assigned_profile:profiles!deliveries_assigned_to_fkey(*)').order('created_at', { ascending: false }).limit(100),
-      supabase.from('profiles').select('*').in('role', ['staff', 'maintenance_team']).eq('is_active', true),
-    ]);
-    setDeliveries(delRes.data ?? []);
-    setStaff(staffRes.data ?? []);
-    setLoading(false);
-  }, []);
+    try {
+      const [delRes, staffRes] = await Promise.all([
+        supabase.from('deliveries').select('*, assigned_profile:profiles!deliveries_assigned_to_fkey(*)').order('created_at', { ascending: false }).limit(100),
+        supabase.from('profiles').select('*').in('role', ['staff', 'maintenance_team']).eq('is_active', true),
+      ]);
+      if (delRes.error) throw delRes.error;
+      if (staffRes.error) throw staffRes.error;
+      setDeliveries(delRes.data ?? []);
+      setStaff(staffRes.data ?? []);
+    } catch (err) {
+      console.error('DeliveriesPage: Failed to fetch data', err);
+      addToast({ type: 'error', title: 'Failed to load', message: 'Could not load deliveries.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleCreate = async () => {
     if (!form.title.trim() || !form.to_location.trim()) {
@@ -59,50 +71,100 @@ export function DeliveriesPage() {
       return;
     }
     setSaving(true);
-    await supabase.from('deliveries').insert({
-      entity_type: form.entity_type.trim(),
-      entity_id: form.entity_id.trim() || null,
-      title: form.title.trim(),
-      description: form.description.trim() || null,
-      from_location: form.from_location.trim(),
-      to_location: form.to_location.trim(),
-      created_by: profile?.id,
-    });
-    addToast({ type: 'success', title: 'Delivery created', message: form.title });
-    setSaving(false);
-    setCreate(false);
-    setForm({ entity_type: 'General', entity_id: '', title: '', description: '', from_location: 'Ground Floor Reception', to_location: '' });
-    fetch();
+    try {
+      const { error } = await supabase.from('deliveries').insert({
+        entity_type: form.entity_type.trim(),
+        entity_id: form.entity_id.trim() || null,
+        title: form.title.trim(),
+        description: form.description.trim() || null,
+        from_location: form.from_location.trim(),
+        to_location: form.to_location.trim(),
+        created_by: profile?.id,
+      });
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Delivery created', message: form.title });
+      setCreate(false);
+      setForm({ entity_type: 'General', entity_id: '', title: '', description: '', from_location: 'Ground Floor Reception', to_location: '' });
+      fetchData();
+    } catch (err) {
+      console.error('DeliveriesPage: Failed to create delivery', err);
+      addToast({ type: 'error', title: 'Failed to create', message: 'Could not create delivery.' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const assignStaff = async () => {
     if (!assignOpen || !selectedStaff) return;
-    await supabase.from('deliveries').update({ assigned_to: selectedStaff, status: 'assigned' }).eq('id', assignOpen.id);
-    addToast({ type: 'success', title: 'Assigned', message: 'Delivery assigned to staff' });
-    setAssignOpen(null);
-    setSelectedStaff('');
-    fetch();
+    try {
+      const { error } = await supabase.from('deliveries').update({ assigned_to: selectedStaff, status: 'assigned' }).eq('id', assignOpen.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Assigned', message: 'Delivery assigned to staff' });
+      setAssignOpen(null);
+      setSelectedStaff('');
+      fetchData();
+    } catch (err) {
+      console.error('DeliveriesPage: Failed to assign', err);
+      addToast({ type: 'error', title: 'Failed to assign', message: 'Could not assign delivery.' });
+    }
   };
 
   const advance = async (d: Delivery) => {
     const next = STATUS_NEXT[d.status];
     if (!next) return;
+    if (next === 'delivered') {
+      setConfirmDeliver(d);
+      setReceiverName('');
+      return;
+    }
     const now = new Date().toISOString();
     const updates: Record<string, unknown> = { status: next };
     if (next === 'picked_up') updates.picked_up_at = now;
     if (next === 'in_transit') updates.in_transit_at = now;
-    if (next === 'delivered') { updates.delivered_at = now; updates.receiver_name = prompt('Receiver name?') || 'Unknown'; }
-    await supabase.from('deliveries').update(updates).eq('id', d.id);
-    addToast({ type: 'success', title: 'Updated', message: `${d.delivery_number} → ${STATUS_CONFIG[next].label}` });
-    fetch();
+    try {
+      const { error } = await supabase.from('deliveries').update(updates).eq('id', d.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Updated', message: `${d.delivery_number} → ${STATUS_CONFIG[next].label}` });
+      fetchData();
+    } catch (err) {
+      console.error('DeliveriesPage: Failed to advance status', err);
+      addToast({ type: 'error', title: 'Failed to update', message: 'Could not update delivery status.' });
+    }
   };
 
-  const markFailed = async (d: Delivery) => {
-    const reason = prompt('Reason for failed delivery?');
-    if (!reason) return;
-    await supabase.from('deliveries').update({ status: 'failed', delivery_notes: reason }).eq('id', d.id);
-    addToast({ type: 'error', title: 'Marked as Failed', message: d.delivery_number });
-    fetch();
+  const confirmDelivery = async () => {
+    if (!confirmDeliver) return;
+    const now = new Date().toISOString();
+    try {
+      const { error } = await supabase.from('deliveries').update({
+        status: 'delivered',
+        delivered_at: now,
+        receiver_name: receiverName.trim() || 'Unknown',
+      }).eq('id', confirmDeliver.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Delivered', message: `${confirmDeliver.delivery_number} marked as delivered` });
+      setConfirmDeliver(null);
+      setReceiverName('');
+      fetchData();
+    } catch (err) {
+      console.error('DeliveriesPage: Failed to mark delivered', err);
+      addToast({ type: 'error', title: 'Failed to update', message: 'Could not mark as delivered.' });
+    }
+  };
+
+  const markFailed = async () => {
+    if (!confirmFailed || !failedReason.trim()) return;
+    try {
+      const { error } = await supabase.from('deliveries').update({ status: 'failed', delivery_notes: failedReason.trim() }).eq('id', confirmFailed.id);
+      if (error) throw error;
+      addToast({ type: 'error', title: 'Marked as Failed', message: confirmFailed.delivery_number });
+      setConfirmFailed(null);
+      setFailedReason('');
+      fetchData();
+    } catch (err) {
+      console.error('DeliveriesPage: Failed to mark as failed', err);
+      addToast({ type: 'error', title: 'Failed to update', message: 'Could not mark as failed.' });
+    }
   };
 
   const filtered = deliveries.filter(d => {
@@ -191,7 +253,7 @@ export function DeliveriesPage() {
                             <button onClick={() => setAssignOpen(d)} className="text-xs text-brand-blue-600 hover:underline">Assign</button>
                           )}
                           {next && <button onClick={() => advance(d)} className="text-xs text-emerald-600 hover:underline">→ {STATUS_CONFIG[next].label}</button>}
-                          {d.status === 'in_transit' && <button onClick={() => markFailed(d)} className="text-xs text-red-500 hover:underline">Fail</button>}
+                          {d.status === 'in_transit' && <button onClick={() => { setConfirmFailed(d); setFailedReason(''); }} className="text-xs text-red-500 hover:underline">Fail</button>}
                         </div>
                       </td>
                     </tr>
@@ -251,6 +313,26 @@ export function DeliveriesPage() {
             <option value="">Select staff...</option>
             {staff.map(s => <option key={s.id} value={s.id}>{s.full_name} ({s.employee_id})</option>)}
           </select>
+        </div>
+      </Modal>
+
+      {/* Confirm delivery modal */}
+      <Modal open={!!confirmDeliver} onClose={() => { setConfirmDeliver(null); setReceiverName(''); }} title="Confirm Delivery" size="sm"
+        footer={<><button onClick={() => { setConfirmDeliver(null); setReceiverName(''); }} className="btn-secondary">Cancel</button><button onClick={confirmDelivery} disabled={!receiverName.trim()} className="btn-primary">Confirm Delivered</button></>}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600 dark:text-slate-400">Enter receiver name for {confirmDeliver?.delivery_number}:</p>
+          <input type="text" value={receiverName} onChange={e => setReceiverName(e.target.value)} placeholder="Receiver name" className="input-field" />
+        </div>
+      </Modal>
+
+      {/* Mark failed modal */}
+      <Modal open={!!confirmFailed} onClose={() => { setConfirmFailed(null); setFailedReason(''); }} title="Mark Delivery as Failed" size="sm"
+        footer={<><button onClick={() => { setConfirmFailed(null); setFailedReason(''); }} className="btn-secondary">Cancel</button><button onClick={markFailed} disabled={!failedReason.trim()} className="btn-danger">Mark Failed</button></>}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600 dark:text-slate-400">Enter reason for failure of {confirmFailed?.delivery_number}:</p>
+          <textarea value={failedReason} onChange={e => setFailedReason(e.target.value)} placeholder="Reason for failed delivery..." rows={3} className="input-field resize-none" />
         </div>
       </Modal>
     </div>

@@ -1,8 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  BedDouble, RefreshCw, Search, UserPlus, UserMinus,
-  ArrowRightLeft, Wrench, CheckCircle2,
-} from 'lucide-react';
+import { BedDouble, RefreshCw, Search, UserPlus, UserMinus, ArrowRightLeft, Wrench, CircleCheck as CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -48,15 +45,22 @@ export function BedManagementPage() {
 
   const fetchRooms = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('rooms')
-      .select('*, beds(*)')
-      .eq('is_active', true)
-      .eq('floor', floorFilter)
-      .order('room_number');
-    setRooms(data ?? []);
-    setLoading(false);
-  }, [floorFilter]);
+    try {
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('*, beds(*)')
+        .eq('is_active', true)
+        .eq('floor', floorFilter)
+        .order('room_number');
+      if (error) throw error;
+      setRooms(data ?? []);
+    } catch (err) {
+      console.error('BedManagementPage: Failed to fetch rooms', err);
+      addToast({ type: 'error', title: 'Failed to load', message: 'Could not load rooms and beds.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [floorFilter, addToast]);
 
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
 
@@ -70,25 +74,32 @@ export function BedManagementPage() {
     setTransferReason('');
     setTransfer(true);
     setBedsLoading(true);
-    const { data } = await supabase
-      .from('beds')
-      .select('id, bed_number, room_id, rooms:rooms(room_number, floor, room_type)')
-      .eq('status', 'available')
-      .neq('id', bed.id)
-      .order('bed_number');
-    const formatted: AvailableBed[] = (data ?? []).map((b: Record<string, unknown>) => {
-      const room = b.rooms as Record<string, string> | null;
-      return {
-        id: b.id as string,
-        bed_number: b.bed_number as string,
-        room_id: b.room_id as string,
-        room_number: room?.room_number ?? '',
-        floor: room?.floor ?? '',
-        room_type: room?.room_type ?? '',
-      };
-    });
-    setAvailableBeds(formatted);
-    setBedsLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('beds')
+        .select('id, bed_number, room_id, rooms:rooms(room_number, floor, room_type)')
+        .eq('status', 'available')
+        .neq('id', bed.id)
+        .order('bed_number');
+      if (error) throw error;
+      const formatted: AvailableBed[] = (data ?? []).map((b: Record<string, unknown>) => {
+        const room = b.rooms as Record<string, string> | null;
+        return {
+          id: b.id as string,
+          bed_number: b.bed_number as string,
+          room_id: b.room_id as string,
+          room_number: room?.room_number ?? '',
+          floor: room?.floor ?? '',
+          room_type: room?.room_type ?? '',
+        };
+      });
+      setAvailableBeds(formatted);
+    } catch (err) {
+      console.error('BedManagementPage: Failed to fetch available beds', err);
+      addToast({ type: 'error', title: 'Failed to load', message: 'Could not load available beds.' });
+    } finally {
+      setBedsLoading(false);
+    }
   };
 
   const handleAllocate = async () => {
@@ -97,15 +108,17 @@ export function BedManagementPage() {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from('beds').update({
-      status: 'occupied',
-      patient_name: allocForm.patient_name.trim(),
-      patient_uhid: allocForm.patient_uhid.trim() || null,
-      admitted_at: new Date().toISOString(),
-      notes: allocForm.notes.trim() || null,
-    }).eq('id', selectedBed.id);
+    try {
+      const { error } = await supabase.from('beds').update({
+        status: 'occupied',
+        patient_name: allocForm.patient_name.trim(),
+        patient_uhid: allocForm.patient_uhid.trim() || null,
+        admitted_at: new Date().toISOString(),
+        notes: allocForm.notes.trim() || null,
+      }).eq('id', selectedBed.id);
 
-    if (!error) {
+      if (error) throw error;
+
       await supabase.from('bed_allocations').insert({
         bed_id: selectedBed.id,
         room_id: selectedBed.room_id,
@@ -125,42 +138,59 @@ export function BedManagementPage() {
         details: { patient: allocForm.patient_name, bed: selectedBed.bed_number },
       });
       addToast({ type: 'success', title: 'Bed allocated', message: `Bed ${selectedBed.bed_number} → ${allocForm.patient_name}` });
-    } else {
-      addToast({ type: 'error', title: 'Error', message: error.message });
+      setAllocModal(false);
+      setAllocForm({ patient_name: '', patient_uhid: '', age: '', gender: 'Male', diagnosis: '', notes: '' });
+    } catch (err) {
+      console.error('BedManagementPage: Failed to allocate bed', err);
+      addToast({ type: 'error', title: 'Error', message: 'Failed to allocate bed.' });
+    } finally {
+      setSaving(false);
+      fetchRooms();
     }
-    setSaving(false);
-    setAllocModal(false);
-    setAllocForm({ patient_name: '', patient_uhid: '', age: '', gender: 'Male', diagnosis: '', notes: '' });
-    fetchRooms();
   };
 
   const handleRelease = async () => {
     if (!selectedBed) return;
     setSaving(true);
-    await supabase.from('beds').update({
-      status: 'available', patient_name: null, patient_uhid: null, admitted_at: null, notes: null,
-    }).eq('id', selectedBed.id);
-    await supabase.from('bed_allocations')
-      .update({ discharged_at: new Date().toISOString(), discharged_by: profile?.id })
-      .eq('bed_id', selectedBed.id).is('discharged_at', null);
-    await supabase.from('audit_logs').insert({
-      user_id: profile?.id, action: 'transfer', entity_type: 'bed', entity_id: selectedBed.id,
-      details: { action: 'released', patient: selectedBed.patient_name },
-    });
-    addToast({ type: 'success', title: 'Bed released', message: `Bed ${selectedBed.bed_number} is now available.` });
-    setSaving(false);
-    setRelModal(false);
-    fetchRooms();
+    try {
+      const { error: bedErr } = await supabase.from('beds').update({
+        status: 'available', patient_name: null, patient_uhid: null, admitted_at: null, notes: null,
+      }).eq('id', selectedBed.id);
+      if (bedErr) throw bedErr;
+      const { error: allocErr } = await supabase.from('bed_allocations')
+        .update({ discharged_at: new Date().toISOString(), discharged_by: profile?.id })
+        .eq('bed_id', selectedBed.id).is('discharged_at', null);
+      if (allocErr) console.error('BedManagementPage: Failed to update allocation', allocErr);
+      await supabase.from('audit_logs').insert({
+        user_id: profile?.id, action: 'transfer', entity_type: 'bed', entity_id: selectedBed.id,
+        details: { action: 'released', patient: selectedBed.patient_name },
+      });
+      addToast({ type: 'success', title: 'Bed released', message: `Bed ${selectedBed.bed_number} is now available.` });
+      setRelModal(false);
+    } catch (err) {
+      console.error('BedManagementPage: Failed to release bed', err);
+      addToast({ type: 'error', title: 'Error', message: 'Failed to release bed.' });
+    } finally {
+      setSaving(false);
+      fetchRooms();
+    }
   };
 
   const handleMaintenance = async (status: BedStatus) => {
     if (!selectedBed) return;
     setSaving(true);
-    await supabase.from('beds').update({ status }).eq('id', selectedBed.id);
-    addToast({ type: 'info', title: 'Bed updated', message: `Bed ${selectedBed.bed_number} → ${status}.` });
-    setSaving(false);
-    setMaintModal(false);
-    fetchRooms();
+    try {
+      const { error } = await supabase.from('beds').update({ status }).eq('id', selectedBed.id);
+      if (error) throw error;
+      addToast({ type: 'info', title: 'Bed updated', message: `Bed ${selectedBed.bed_number} → ${status}.` });
+      setMaintModal(false);
+    } catch (err) {
+      console.error('BedManagementPage: Failed to update bed status', err);
+      addToast({ type: 'error', title: 'Error', message: 'Failed to update bed status.' });
+    } finally {
+      setSaving(false);
+      fetchRooms();
+    }
   };
 
   const handleTransfer = async () => {
@@ -171,65 +201,73 @@ export function BedManagementPage() {
     setSaving(true);
     const now = new Date().toISOString();
 
-    // Set current bed to available
-    await supabase.from('beds').update({
-      status: 'available', patient_name: null, patient_uhid: null, admitted_at: null, notes: null,
-    }).eq('id', selectedBed.id);
+    try {
+      // Set current bed to available
+      const { error: currErr } = await supabase.from('beds').update({
+        status: 'available', patient_name: null, patient_uhid: null, admitted_at: null, notes: null,
+      }).eq('id', selectedBed.id);
+      if (currErr) throw currErr;
 
-    // Set target bed to occupied with patient info
-    await supabase.from('beds').update({
-      status: 'occupied',
-      patient_name: selectedBed.patient_name,
-      patient_uhid: selectedBed.patient_uhid,
-      admitted_at: selectedBed.admitted_at,
-      notes: selectedBed.notes,
-    }).eq('id', targetBedId);
+      // Set target bed to occupied with patient info
+      const { error: targetErr } = await supabase.from('beds').update({
+        status: 'occupied',
+        patient_name: selectedBed.patient_name,
+        patient_uhid: selectedBed.patient_uhid,
+        admitted_at: selectedBed.admitted_at,
+        notes: selectedBed.notes,
+      }).eq('id', targetBedId);
+      if (targetErr) throw targetErr;
 
-    // Close current allocation
-    await supabase.from('bed_allocations')
-      .update({ discharged_at: now, discharged_by: profile?.id })
-      .eq('bed_id', selectedBed.id).is('discharged_at', null);
+      // Close current allocation
+      await supabase.from('bed_allocations')
+        .update({ discharged_at: now, discharged_by: profile?.id })
+        .eq('bed_id', selectedBed.id).is('discharged_at', null);
 
-    // Get target bed room info
-    const target = availableBeds.find(b => b.id === targetBedId);
+      // Get target bed room info
+      const target = availableBeds.find(b => b.id === targetBedId);
 
-    // Create new allocation for target bed
-    await supabase.from('bed_allocations').insert({
-      bed_id: targetBedId,
-      room_id: target?.room_id ?? null,
-      patient_name: selectedBed.patient_name ?? '',
-      patient_uhid: selectedBed.patient_uhid,
-      allocated_by: profile?.id,
-      notes: transferReason ? `Transferred from bed ${selectedBed.bed_number}. Reason: ${transferReason}` : `Transferred from bed ${selectedBed.bed_number}`,
-    });
+      // Create new allocation for target bed
+      await supabase.from('bed_allocations').insert({
+        bed_id: targetBedId,
+        room_id: target?.room_id ?? null,
+        patient_name: selectedBed.patient_name ?? '',
+        patient_uhid: selectedBed.patient_uhid,
+        allocated_by: profile?.id,
+        notes: transferReason ? `Transferred from bed ${selectedBed.bed_number}. Reason: ${transferReason}` : `Transferred from bed ${selectedBed.bed_number}`,
+      });
 
-    // Audit log
-    await supabase.from('audit_logs').insert({
-      user_id: profile?.id,
-      action: 'transfer',
-      entity_type: 'bed',
-      entity_id: selectedBed.id,
-      details: {
-        action: 'bed_transfer',
-        patient: selectedBed.patient_name,
-        from_bed: selectedBed.bed_number,
-        to_bed: target?.bed_number,
-        to_room: target?.room_number,
-        to_floor: target?.floor,
-        reason: transferReason,
-        performed_by: profile?.full_name,
-        transfer_date: now,
-      },
-    });
+      // Audit log
+      await supabase.from('audit_logs').insert({
+        user_id: profile?.id,
+        action: 'transfer',
+        entity_type: 'bed',
+        entity_id: selectedBed.id,
+        details: {
+          action: 'bed_transfer',
+          patient: selectedBed.patient_name,
+          from_bed: selectedBed.bed_number,
+          to_bed: target?.bed_number,
+          to_room: target?.room_number,
+          to_floor: target?.floor,
+          reason: transferReason,
+          performed_by: profile?.full_name,
+          transfer_date: now,
+        },
+      });
 
-    addToast({
-      type: 'success',
-      title: 'Bed Transfer Complete',
-      message: `${selectedBed.patient_name} moved to Bed ${target?.bed_number} (${target?.floor})`,
-    });
-    setSaving(false);
-    setTransfer(false);
-    fetchRooms();
+      addToast({
+        type: 'success',
+        title: 'Bed Transfer Complete',
+        message: `${selectedBed.patient_name} moved to Bed ${target?.bed_number} (${target?.floor})`,
+      });
+      setTransfer(false);
+    } catch (err) {
+      console.error('BedManagementPage: Failed to transfer patient', err);
+      addToast({ type: 'error', title: 'Error', message: 'Failed to transfer patient.' });
+    } finally {
+      setSaving(false);
+      fetchRooms();
+    }
   };
 
   const allBeds = rooms.flatMap(r => (r.beds ?? []) as Bed[]);

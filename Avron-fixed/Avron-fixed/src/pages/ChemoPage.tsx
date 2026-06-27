@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, RefreshCw, Syringe, AlertTriangle, Calendar } from 'lucide-react';
+import { Plus, Search, RefreshCw, Syringe, TriangleAlert as AlertTriangle, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -38,15 +38,22 @@ export function ChemoPage() {
     cycle_number: 1, dose: '', protocol: '', scheduled_date: '', notes: '',
   });
 
-  const fetch = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('chemo_requests').select('*')
-      .order('created_at', { ascending: false }).limit(100);
-    setReqs(data ?? []);
-    setLoading(false);
-  }, []);
+    try {
+      const { data, error } = await supabase.from('chemo_requests').select('*')
+        .order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      setReqs(data ?? []);
+    } catch (err) {
+      console.error('ChemoPage: Failed to fetch chemo requests', err);
+      addToast({ type: 'error', title: 'Failed to load', message: 'Could not load chemotherapy requests.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleCreate = async () => {
     if (!form.patient_name.trim()) {
@@ -54,40 +61,59 @@ export function ChemoPage() {
       return;
     }
     setSaving(true);
-    await supabase.from('chemo_requests').insert({
-      patient_name: form.patient_name.trim(),
-      patient_uhid: form.patient_uhid.trim() || null,
-      drug_name: form.drug_name,
-      cycle_number: form.cycle_number,
-      dose: form.dose.trim() || null,
-      protocol: form.protocol.trim() || null,
-      scheduled_date: form.scheduled_date || null,
-      notes: form.notes.trim() || null,
-      requested_by: profile?.id,
-    });
-    addToast({ type: 'success', title: 'Chemo request created', message: `${form.drug_name} Cycle ${form.cycle_number}` });
-    setSaving(false);
-    setCreate(false);
-    setForm({ patient_name: '', patient_uhid: '', drug_name: 'Cisplatin', cycle_number: 1, dose: '', protocol: '', scheduled_date: '', notes: '' });
-    fetch();
+    try {
+      const { error } = await supabase.from('chemo_requests').insert({
+        patient_name: form.patient_name.trim(),
+        patient_uhid: form.patient_uhid.trim() || null,
+        drug_name: form.drug_name,
+        cycle_number: form.cycle_number,
+        dose: form.dose.trim() || null,
+        protocol: form.protocol.trim() || null,
+        scheduled_date: form.scheduled_date || null,
+        notes: form.notes.trim() || null,
+        requested_by: profile?.id,
+      });
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Chemo request created', message: `${form.drug_name} Cycle ${form.cycle_number}` });
+      setCreate(false);
+      setForm({ patient_name: '', patient_uhid: '', drug_name: 'Cisplatin', cycle_number: 1, dose: '', protocol: '', scheduled_date: '', notes: '' });
+      fetchData();
+    } catch (err) {
+      console.error('ChemoPage: Failed to create chemo request', err);
+      addToast({ type: 'error', title: 'Failed to create', message: 'Could not submit chemotherapy request.' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const advance = async (r: ChemoRequest) => {
     const next = STATUS_NEXT[r.status];
     if (!next) return;
-    const now = new Date().toISOString();
-    const updates: Record<string, unknown> = { status: next };
-    if (next === 'approved') { updates.approved_by = profile?.id; updates.approved_at = now; }
-    if (next === 'dispensed') { updates.dispensed_by = profile?.id; updates.dispensed_at = now; }
-    await supabase.from('chemo_requests').update(updates).eq('id', r.id);
-    addToast({ type: 'success', title: 'Updated', message: `${r.req_number} → ${DEPT_STATUS_CONFIG[next].label}` });
-    fetch();
+    try {
+      const now = new Date().toISOString();
+      const updates: Record<string, unknown> = { status: next };
+      if (next === 'approved') { updates.approved_by = profile?.id; updates.approved_at = now; }
+      if (next === 'dispensed') { updates.dispensed_by = profile?.id; updates.dispensed_at = now; }
+      const { error } = await supabase.from('chemo_requests').update(updates).eq('id', r.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Updated', message: `${r.req_number} → ${DEPT_STATUS_CONFIG[next].label}` });
+      fetchData();
+    } catch (err) {
+      console.error('ChemoPage: Failed to advance status', err);
+      addToast({ type: 'error', title: 'Failed to update', message: 'Could not update chemo request status.' });
+    }
   };
 
   const reject = async (r: ChemoRequest) => {
-    await supabase.from('chemo_requests').update({ status: 'rejected' }).eq('id', r.id);
-    addToast({ type: 'warning', title: 'Rejected', message: r.req_number });
-    fetch();
+    try {
+      const { error } = await supabase.from('chemo_requests').update({ status: 'rejected' }).eq('id', r.id);
+      if (error) throw error;
+      addToast({ type: 'warning', title: 'Rejected', message: r.req_number });
+      fetchData();
+    } catch (err) {
+      console.error('ChemoPage: Failed to reject', err);
+      addToast({ type: 'error', title: 'Failed to reject', message: 'Could not reject chemo request.' });
+    }
   };
 
   const filtered = reqs.filter(r => {

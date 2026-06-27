@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, RefreshCw, Pill, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Search, RefreshCw, Pill, CircleCheck as CheckCircle2, Circle as XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -30,15 +30,22 @@ export function PharmacyPage() {
     frequency: '', quantity: '', instructions: '', is_chemo: false,
   });
 
-  const fetch = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('drug_requests').select('*')
-      .order('created_at', { ascending: false }).limit(100);
-    setReqs(data ?? []);
-    setLoading(false);
-  }, []);
+    try {
+      const { data, error } = await supabase.from('drug_requests').select('*')
+        .order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      setReqs(data ?? []);
+    } catch (err) {
+      console.error('PharmacyPage: Failed to fetch drug requests', err);
+      addToast({ type: 'error', title: 'Failed to load', message: 'Could not load drug requests.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleCreate = async () => {
     if (!form.patient_name.trim() || !form.medication.trim()) {
@@ -46,35 +53,54 @@ export function PharmacyPage() {
       return;
     }
     setSaving(true);
-    await supabase.from('drug_requests').insert({
-      patient_name: form.patient_name.trim(), patient_uhid: form.patient_uhid.trim() || null,
-      medication: form.medication.trim(), dosage: form.dosage.trim() || null,
-      frequency: form.frequency.trim() || null, quantity: form.quantity.trim() || null,
-      instructions: form.instructions.trim() || null, is_chemo: form.is_chemo,
-      requested_by: profile?.id,
-    });
-    addToast({ type: 'success', title: 'Drug request created', message: form.medication });
-    setSaving(false);
-    setCreate(false);
-    setForm({ patient_name: '', patient_uhid: '', medication: '', dosage: '', frequency: '', quantity: '', instructions: '', is_chemo: false });
-    fetch();
+    try {
+      const { error } = await supabase.from('drug_requests').insert({
+        patient_name: form.patient_name.trim(), patient_uhid: form.patient_uhid.trim() || null,
+        medication: form.medication.trim(), dosage: form.dosage.trim() || null,
+        frequency: form.frequency.trim() || null, quantity: form.quantity.trim() || null,
+        instructions: form.instructions.trim() || null, is_chemo: form.is_chemo,
+        requested_by: profile?.id,
+      });
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Drug request created', message: form.medication });
+      setCreate(false);
+      setForm({ patient_name: '', patient_uhid: '', medication: '', dosage: '', frequency: '', quantity: '', instructions: '', is_chemo: false });
+      fetchData();
+    } catch (err) {
+      console.error('PharmacyPage: Failed to create drug request', err);
+      addToast({ type: 'error', title: 'Failed to create', message: 'Could not submit drug request.' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const advance = async (r: DrugRequest) => {
     const next = STATUS_NEXT[r.status];
     if (!next) return;
-    const updates: Record<string, unknown> = { status: next };
-    if (next === 'approved')  { updates.approved_by = profile?.id; updates.approved_at = new Date().toISOString(); }
-    if (next === 'dispensed') { updates.dispensed_by = profile?.id; updates.dispensed_at = new Date().toISOString(); }
-    await supabase.from('drug_requests').update(updates).eq('id', r.id);
-    addToast({ type: 'success', title: 'Updated', message: `${r.medication} → ${DEPT_STATUS_CONFIG[next].label}` });
-    fetch();
+    try {
+      const updates: Record<string, unknown> = { status: next };
+      if (next === 'approved')  { updates.approved_by = profile?.id; updates.approved_at = new Date().toISOString(); }
+      if (next === 'dispensed') { updates.dispensed_by = profile?.id; updates.dispensed_at = new Date().toISOString(); }
+      const { error } = await supabase.from('drug_requests').update(updates).eq('id', r.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Updated', message: `${r.medication} → ${DEPT_STATUS_CONFIG[next].label}` });
+      fetchData();
+    } catch (err) {
+      console.error('PharmacyPage: Failed to advance status', err);
+      addToast({ type: 'error', title: 'Failed to update', message: 'Could not update drug request status.' });
+    }
   };
 
   const reject = async (r: DrugRequest) => {
-    await supabase.from('drug_requests').update({ status: 'rejected' }).eq('id', r.id);
-    addToast({ type: 'warning', title: 'Rejected', message: r.req_number });
-    fetch();
+    try {
+      const { error } = await supabase.from('drug_requests').update({ status: 'rejected' }).eq('id', r.id);
+      if (error) throw error;
+      addToast({ type: 'warning', title: 'Rejected', message: r.req_number });
+      fetchData();
+    } catch (err) {
+      console.error('PharmacyPage: Failed to reject', err);
+      addToast({ type: 'error', title: 'Failed to reject', message: 'Could not reject drug request.' });
+    }
   };
 
   const filtered = reqs.filter(r => {

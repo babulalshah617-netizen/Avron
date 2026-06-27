@@ -42,49 +42,75 @@ export function RadiologyPage() {
     scheduled_at: '',
   });
 
-  const fetch = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('radiology_requests').select('*')
-      .order('created_at', { ascending: false }).limit(100);
-    setReqs(data ?? []);
-    setLoading(false);
-  }, []);
+    try {
+      const { data, error } = await supabase.from('radiology_requests').select('*')
+        .order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      setReqs(data ?? []);
+    } catch (err) {
+      console.error('RadiologyPage: Failed to fetch radiology requests', err);
+      addToast({ type: 'error', title: 'Failed to load', message: 'Could not load radiology requests.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleCreate = async () => {
     if (!form.patient_name.trim()) { addToast({ type: 'error', title: 'Required', message: 'Patient name required.' }); return; }
     setSaving(true);
-    await supabase.from('radiology_requests').insert({
-      patient_name: form.patient_name.trim(), patient_uhid: form.patient_uhid.trim() || null,
-      modality: form.modality, body_part: form.body_part.trim() || null,
-      clinical_notes: form.clinical_notes.trim() || null, contrast: form.contrast,
-      scheduled_at: form.scheduled_at || null, requested_by: profile?.id,
-    });
-    addToast({ type: 'success', title: 'Radiology request created', message: MODALITIES.find(m => m.value === form.modality)?.label });
-    setSaving(false);
-    setCreate(false);
-    setForm({ patient_name: '', patient_uhid: '', modality: 'xray', body_part: '', clinical_notes: '', contrast: false, scheduled_at: '' });
-    fetch();
+    try {
+      const { error } = await supabase.from('radiology_requests').insert({
+        patient_name: form.patient_name.trim(), patient_uhid: form.patient_uhid.trim() || null,
+        modality: form.modality, body_part: form.body_part.trim() || null,
+        clinical_notes: form.clinical_notes.trim() || null, contrast: form.contrast,
+        scheduled_at: form.scheduled_at || null, requested_by: profile?.id,
+      });
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Radiology request created', message: MODALITIES.find(m => m.value === form.modality)?.label });
+      setCreate(false);
+      setForm({ patient_name: '', patient_uhid: '', modality: 'xray', body_part: '', clinical_notes: '', contrast: false, scheduled_at: '' });
+      fetchData();
+    } catch (err) {
+      console.error('RadiologyPage: Failed to create radiology request', err);
+      addToast({ type: 'error', title: 'Failed to create', message: 'Could not submit radiology request.' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const advance = async (r: RadiologyRequest) => {
     const next = STATUS_NEXT[r.status];
     if (!next) return;
-    await supabase.from('radiology_requests').update({ status: next, completed_at: next === 'completed' ? new Date().toISOString() : null }).eq('id', r.id);
-    addToast({ type: 'success', title: 'Updated', message: `${r.req_number} → ${DEPT_STATUS_CONFIG[next].label}` });
-    fetch();
+    try {
+      const { error } = await supabase.from('radiology_requests').update({ status: next, completed_at: next === 'completed' ? new Date().toISOString() : null }).eq('id', r.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Updated', message: `${r.req_number} → ${DEPT_STATUS_CONFIG[next].label}` });
+      fetchData();
+    } catch (err) {
+      console.error('RadiologyPage: Failed to advance status', err);
+      addToast({ type: 'error', title: 'Failed to update', message: 'Could not update radiology request status.' });
+    }
   };
 
   const saveReport = async () => {
     if (!detailItem) return;
-    const updates: Record<string, unknown> = { report_text: reportText };
-    if (imageUrl.trim()) updates.image_urls = [...(detailItem.image_urls ?? []), imageUrl.trim()];
-    await supabase.from('radiology_requests').update(updates).eq('id', detailItem.id);
-    addToast({ type: 'success', title: 'Report saved', message: detailItem.req_number });
-    setDetail(null);
-    setReportText(''); setImageUrl('');
-    fetch();
+    try {
+      const updates: Record<string, unknown> = { report_text: reportText };
+      if (imageUrl.trim()) updates.image_urls = [...(detailItem.image_urls ?? []), imageUrl.trim()];
+      const { error } = await supabase.from('radiology_requests').update(updates).eq('id', detailItem.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Report saved', message: detailItem.req_number });
+      setDetail(null);
+      setReportText(''); setImageUrl('');
+      fetchData();
+    } catch (err) {
+      console.error('RadiologyPage: Failed to save report', err);
+      addToast({ type: 'error', title: 'Failed to save', message: 'Could not save radiology report.' });
+    }
   };
 
   const filtered = reqs.filter(r => {

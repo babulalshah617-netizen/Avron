@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, Filter, RefreshCw, ArrowRight, ClipboardList, Trash2 } from 'lucide-react';
+import { Plus, Search, ListFilter as Filter, RefreshCw, ArrowRight, ClipboardList, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -62,15 +62,23 @@ export function RequisitionsPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [reqsRes, deptsRes] = await Promise.all([
-      supabase.from('requisitions').select('*, department:departments(id,name,floor)')
-        .order('created_at', { ascending: false }).limit(100),
-      supabase.from('departments').select('id,name').eq('is_active', true).order('name'),
-    ]);
-    setReqs(reqsRes.data ?? []);
-    setDepts(deptsRes.data ?? []);
-    setLoading(false);
-  }, []);
+    try {
+      const [reqsRes, deptsRes] = await Promise.all([
+        supabase.from('requisitions').select('*, department:departments(id,name,floor)')
+          .order('created_at', { ascending: false }).limit(100),
+        supabase.from('departments').select('id,name').eq('is_active', true).order('name'),
+      ]);
+      if (reqsRes.error) throw reqsRes.error;
+      if (deptsRes.error) throw deptsRes.error;
+      setReqs(reqsRes.data ?? []);
+      setDepts(deptsRes.data ?? []);
+    } catch (err) {
+      console.error('RequisitionsPage: Failed to fetch data', err);
+      addToast({ type: 'error', title: 'Failed to load', message: 'Could not load requisitions.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -80,62 +88,86 @@ export function RequisitionsPage() {
       return;
     }
     setSaving(true);
-    const { data: req, error } = await supabase.from('requisitions').insert({
-      type: form.type, priority: form.priority,
-      patient_name: form.patient_name.trim() || null,
-      patient_uhid: form.patient_uhid.trim() || null,
-      department_id: form.department_id || null,
-      scheduled_for: form.scheduled_for || null,
-      notes: form.notes.trim() || null,
-      requested_by: profile?.id,
-    }).select().maybeSingle();
+    try {
+      const { data: req, error } = await supabase.from('requisitions').insert({
+        type: form.type, priority: form.priority,
+        patient_name: form.patient_name.trim() || null,
+        patient_uhid: form.patient_uhid.trim() || null,
+        department_id: form.department_id || null,
+        scheduled_for: form.scheduled_for || null,
+        notes: form.notes.trim() || null,
+        requested_by: profile?.id,
+      }).select().maybeSingle();
 
-    if (req && !error) {
-      const validItems = form.items.filter(i => i.item_name.trim());
-      await supabase.from('requisition_items').insert(
-        validItems.map(i => ({
-          requisition_id: req.id,
-          item_name: i.item_name.trim(),
-          quantity: parseFloat(i.quantity) || 1,
-          unit: i.unit || 'pcs',
-        }))
-      );
-      await supabase.from('audit_logs').insert({
-        user_id: profile?.id, action: 'create', entity_type: 'requisition', entity_id: req.id,
-        details: { type: form.type, number: req.req_number },
-      });
-      addToast({ type: 'success', title: 'Requisition created', message: req.req_number });
-      setCreate(false);
-      setForm({ type: 'general', priority: 'routine', patient_name: '', patient_uhid: '', department_id: '', scheduled_for: '', notes: '', items: [{ item_name: '', quantity: '1', unit: 'pcs' }] });
-    } else {
-      addToast({ type: 'error', title: 'Error', message: error?.message ?? 'Failed to create.' });
+      if (error) throw error;
+      if (req) {
+        const validItems = form.items.filter(i => i.item_name.trim());
+        const { error: itemsErr } = await supabase.from('requisition_items').insert(
+          validItems.map(i => ({
+            requisition_id: req.id,
+            item_name: i.item_name.trim(),
+            quantity: parseFloat(i.quantity) || 1,
+            unit: i.unit || 'pcs',
+          }))
+        );
+        if (itemsErr) console.error('RequisitionsPage: Failed to insert items', itemsErr);
+        await supabase.from('audit_logs').insert({
+          user_id: profile?.id, action: 'create', entity_type: 'requisition', entity_id: req.id,
+          details: { type: form.type, number: req.req_number },
+        });
+        addToast({ type: 'success', title: 'Requisition created', message: req.req_number });
+        setCreate(false);
+        setForm({ type: 'general', priority: 'routine', patient_name: '', patient_uhid: '', department_id: '', scheduled_for: '', notes: '', items: [{ item_name: '', quantity: '1', unit: 'pcs' }] });
+      }
+    } catch (err) {
+      console.error('RequisitionsPage: Failed to create requisition', err);
+      addToast({ type: 'error', title: 'Error', message: 'Failed to create requisition.' });
+    } finally {
+      setSaving(false);
+      fetchData();
     }
-    setSaving(false);
-    fetchData();
   };
 
   const advanceStatus = async (req: Requisition) => {
     const next = STATUS_FLOW[req.status];
     if (!next) return;
-    const updates: Record<string, unknown> = { status: next };
-    if (next === 'approved')   { updates.approved_by = profile?.id; updates.approved_at = new Date().toISOString(); }
-    if (next === 'processing') { updates.processed_by = profile?.id; updates.processed_at = new Date().toISOString(); }
-    if (next === 'delivered')  { updates.delivered_by = profile?.id; updates.delivered_at = new Date().toISOString(); }
-    if (next === 'completed')  { updates.completed_at = new Date().toISOString(); }
-    await supabase.from('requisitions').update(updates).eq('id', req.id);
-    addToast({ type: 'success', title: 'Status updated', message: `${req.req_number} → ${WORKFLOW_STATUS_CONFIG[next].label}` });
-    fetchData();
+    try {
+      const updates: Record<string, unknown> = { status: next };
+      if (next === 'approved')   { updates.approved_by = profile?.id; updates.approved_at = new Date().toISOString(); }
+      if (next === 'processing') { updates.processed_by = profile?.id; updates.processed_at = new Date().toISOString(); }
+      if (next === 'delivered')  { updates.delivered_by = profile?.id; updates.delivered_at = new Date().toISOString(); }
+      if (next === 'completed')  { updates.completed_at = new Date().toISOString(); }
+      const { error } = await supabase.from('requisitions').update(updates).eq('id', req.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Status updated', message: `${req.req_number} → ${WORKFLOW_STATUS_CONFIG[next].label}` });
+      fetchData();
+    } catch (err) {
+      console.error('RequisitionsPage: Failed to advance status', err);
+      addToast({ type: 'error', title: 'Failed to update', message: 'Could not update requisition status.' });
+    }
   };
 
   const rejectReq = async (req: Requisition) => {
-    await supabase.from('requisitions').update({ status: 'rejected' }).eq('id', req.id);
-    addToast({ type: 'warning', title: 'Rejected', message: req.req_number });
-    fetchData();
+    try {
+      const { error } = await supabase.from('requisitions').update({ status: 'rejected' }).eq('id', req.id);
+      if (error) throw error;
+      addToast({ type: 'warning', title: 'Rejected', message: req.req_number });
+      fetchData();
+    } catch (err) {
+      console.error('RequisitionsPage: Failed to reject', err);
+      addToast({ type: 'error', title: 'Failed to reject', message: 'Could not reject requisition.' });
+    }
   };
 
   const openDetail = async (req: Requisition) => {
-    const { data: items } = await supabase.from('requisition_items').select('*').eq('requisition_id', req.id);
-    setDetail({ ...req, items: items ?? [] });
+    try {
+      const { data: items, error } = await supabase.from('requisition_items').select('*').eq('requisition_id', req.id);
+      if (error) throw error;
+      setDetail({ ...req, items: items ?? [] });
+    } catch (err) {
+      console.error('RequisitionsPage: Failed to fetch items', err);
+      setDetail(req);
+    }
   };
 
   const filtered = reqs.filter(r => {

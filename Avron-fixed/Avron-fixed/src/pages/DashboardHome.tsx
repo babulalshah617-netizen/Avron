@@ -1,9 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  Users, Building2, BedDouble, Activity, TrendingUp, AlertTriangle,
-  CheckCircle2, Clock, ArrowUpRight, Layers, Ticket, FileImage,
-  Package, Truck, FlaskConical, Radio, Pill,
-} from 'lucide-react';
+import { Users, Building2, BedDouble, Activity, TrendingUp, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle2, Clock, ArrowUpRight, Layers, Ticket, FileImage, Package, Truck, FlaskConical, Radio, Pill } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from '../contexts/RouterContext';
@@ -92,9 +88,9 @@ export function DashboardHome() {
         supabase.from('departments').select('id, is_active'),
         supabase.from('beds').select('id, status'),
         supabase.from('tickets').select('id, status'),
-        supabase.from('bed_allocations').select('id, status'),
+        supabase.from('bed_allocations').select('id, discharged_at'),
         supabase.from('discharge_requests').select('id, status'),
-        supabase.from('media_files').select('id, is_deleted'),
+        supabase.from('media_files').select('id'),
         supabase.from('assets').select('id, status'),
         supabase.from('deliveries').select('id, status'),
         supabase.from('lab_requests').select('id'),
@@ -130,18 +126,18 @@ export function DashboardHome() {
         assigned_tickets:       tickets.filter(t => ['assigned','in_progress'].includes(t.status)).length,
         resolved_tickets:       tickets.filter(t => t.status === 'resolved').length,
         closed_tickets:         tickets.filter(t => t.status === 'closed').length,
-        current_admissions:     allocs.filter(a => a.status === 'active').length,
-        total_discharges:       discharges.filter(d => d.status === 'approved').length,
-        total_media:            media.filter(m => !m.is_deleted).length,
+        current_admissions:     allocs.filter(a => a.discharged_at === null).length,
+        total_discharges:       discharges.filter(d => d.status === 'completed').length,
+        total_media:            media.length,
         total_assets:           assets.length,
         active_assets:          assets.filter(a => a.status === 'active').length,
         total_deliveries:       deliveries.length,
-        pending_deliveries:     deliveries.filter(d => d.status === 'pending').length,
+        pending_deliveries:     deliveries.filter(d => ['created','assigned','picked_up','in_transit'].includes(d.status)).length,
         total_lab_requests:     labs.length,
         total_radiology_requests: radios.length,
         total_drug_requests:    drugs.length,
         total_requisitions:     reqs.length,
-        pending_requisitions:   reqs.filter(r => r.status === 'pending').length,
+        pending_requisitions:   reqs.filter(r => r.status === 'created').length,
       });
     }
 
@@ -207,7 +203,7 @@ export function DashboardHome() {
       sub: `${stats.occupied_beds} occupied · ${stats.available_beds} free`,
       icon: BedDouble,
       color: 'bg-violet-500',
-      action: () => navigate('beds'),
+      action: () => navigate('bed-management'),
       canView: true,
     },
     {
@@ -216,7 +212,7 @@ export function DashboardHome() {
       sub: `${stats.total_discharges} discharged`,
       icon: Activity,
       color: 'bg-rose-500',
-      action: () => navigate('beds'),
+      action: () => navigate('bed-management'),
       canView: true,
     },
     {

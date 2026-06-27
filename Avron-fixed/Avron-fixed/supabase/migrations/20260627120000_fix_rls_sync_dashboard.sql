@@ -115,11 +115,11 @@ SELECT
   (SELECT COUNT(*)               FROM tickets WHERE status = 'closed')    AS closed_tickets,
 
   -- Bed Allocations (Admissions/Discharges)
-  (SELECT COUNT(*)               FROM bed_allocations WHERE status = 'active')    AS current_admissions,
-  (SELECT COUNT(*)               FROM discharge_requests WHERE status = 'approved') AS total_discharges,
+  (SELECT COUNT(*)               FROM bed_allocations WHERE discharged_at IS NULL) AS current_admissions,
+  (SELECT COUNT(*)               FROM discharge_requests WHERE status = 'completed') AS total_discharges,
 
   -- Media
-  (SELECT COUNT(*)               FROM media_files WHERE is_deleted = false)       AS total_media,
+  (SELECT COUNT(*)               FROM media_files)                                 AS total_media,
 
   -- Assets
   (SELECT COUNT(*)               FROM assets)                                     AS total_assets,
@@ -127,7 +127,7 @@ SELECT
 
   -- Deliveries
   (SELECT COUNT(*)               FROM deliveries)                                 AS total_deliveries,
-  (SELECT COUNT(*)               FROM deliveries WHERE status = 'pending')        AS pending_deliveries,
+  (SELECT COUNT(*)               FROM deliveries WHERE status IN ('created','assigned','picked_up','in_transit')) AS pending_deliveries,
 
   -- Lab / Radiology / Pharmacy
   (SELECT COUNT(*)               FROM lab_requests)                               AS total_lab_requests,
@@ -136,7 +136,7 @@ SELECT
 
   -- Requisitions
   (SELECT COUNT(*)               FROM requisitions)                               AS total_requisitions,
-  (SELECT COUNT(*)               FROM requisitions WHERE status = 'pending')      AS pending_requisitions;
+  (SELECT COUNT(*)               FROM requisitions WHERE status = 'created')     AS pending_requisitions;
 
 -- RLS for the view — authenticated users can query it
 GRANT SELECT ON dashboard_stats TO authenticated;

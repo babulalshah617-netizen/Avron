@@ -45,15 +45,22 @@ export function LabPage() {
     test_details: '', sample_type: 'Blood', notes: '',
   });
 
-  const fetch = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('lab_requests').select('*')
-      .order('created_at', { ascending: false }).limit(100);
-    setReqs(data ?? []);
-    setLoading(false);
-  }, []);
+    try {
+      const { data, error } = await supabase.from('lab_requests').select('*')
+        .order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      setReqs(data ?? []);
+    } catch (err) {
+      console.error('LabPage: Failed to fetch lab requests', err);
+      addToast({ type: 'error', title: 'Failed to load', message: 'Could not load lab requests.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleCreate = async () => {
     if (!form.patient_name.trim()) {
@@ -61,20 +68,27 @@ export function LabPage() {
       return;
     }
     setSaving(true);
-    await supabase.from('lab_requests').insert({
-      patient_name: form.patient_name.trim(),
-      patient_uhid: form.patient_uhid.trim() || null,
-      test_panel: form.test_panel,
-      test_details: form.test_details.trim() || null,
-      sample_type: form.sample_type,
-      notes: form.notes.trim() || null,
-      requested_by: profile?.id,
-    });
-    addToast({ type: 'success', title: 'Lab request created', message: form.test_panel });
-    setSaving(false);
-    setCreate(false);
-    setForm({ patient_name: '', patient_uhid: '', test_panel: 'CBC', test_details: '', sample_type: 'Blood', notes: '' });
-    fetch();
+    try {
+      const { error } = await supabase.from('lab_requests').insert({
+        patient_name: form.patient_name.trim(),
+        patient_uhid: form.patient_uhid.trim() || null,
+        test_panel: form.test_panel,
+        test_details: form.test_details.trim() || null,
+        sample_type: form.sample_type,
+        notes: form.notes.trim() || null,
+        requested_by: profile?.id,
+      });
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Lab request created', message: form.test_panel });
+      setCreate(false);
+      setForm({ patient_name: '', patient_uhid: '', test_panel: 'CBC', test_details: '', sample_type: 'Blood', notes: '' });
+      fetchData();
+    } catch (err) {
+      console.error('LabPage: Failed to create lab request', err);
+      addToast({ type: 'error', title: 'Failed to create', message: 'Could not submit lab request. Please try again.' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const advance = async (r: LabRequest) => {
@@ -85,24 +99,36 @@ export function LabPage() {
     if (next === 'sample_collected') { updates.collected_by = profile?.id; updates.collected_at = now; }
     if (next === 'processing') { updates.processed_by = profile?.id; updates.processed_at = now; }
     if (next === 'report_ready') { updates.report_ready_at = now; }
-    await supabase.from('lab_requests').update(updates).eq('id', r.id);
-    addToast({ type: 'success', title: 'Updated', message: `${r.req_number} → ${STATUS_CONFIG[next].label}` });
-    fetch();
+    try {
+      const { error } = await supabase.from('lab_requests').update(updates).eq('id', r.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Updated', message: `${r.req_number} → ${STATUS_CONFIG[next].label}` });
+      fetchData();
+    } catch (err) {
+      console.error('LabPage: Failed to advance status', err);
+      addToast({ type: 'error', title: 'Failed to update', message: 'Could not update lab request status.' });
+    }
   };
 
   const saveReport = async () => {
     if (!detailItem) return;
-    await supabase.from('lab_requests').update({
-      report_text: reportText,
-      report_url: reportUrl.trim() || null,
-      status: 'report_ready',
-      report_ready_at: new Date().toISOString(),
-    }).eq('id', detailItem.id);
-    addToast({ type: 'success', title: 'Report saved', message: detailItem.req_number });
-    setDetail(null);
-    setReportText('');
-    setReportUrl('');
-    fetch();
+    try {
+      const { error } = await supabase.from('lab_requests').update({
+        report_text: reportText,
+        report_url: reportUrl.trim() || null,
+        status: 'report_ready',
+        report_ready_at: new Date().toISOString(),
+      }).eq('id', detailItem.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Report saved', message: detailItem.req_number });
+      setDetail(null);
+      setReportText('');
+      setReportUrl('');
+      fetchData();
+    } catch (err) {
+      console.error('LabPage: Failed to save report', err);
+      addToast({ type: 'error', title: 'Failed to save', message: 'Could not save lab report.' });
+    }
   };
 
   const filtered = reqs.filter(r => {

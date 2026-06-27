@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, RefreshCw, Monitor, Wrench, QrCode, AlertTriangle, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Search, RefreshCw, Monitor, Wrench, QrCode, TriangleAlert as AlertTriangle, Calendar, DollarSign } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -57,20 +57,29 @@ export function AssetsPage() {
     cost: '', scheduled_at: '', completed_at: '', next_service_date: '', parts_replaced: '', notes: '',
   });
 
-  const fetch = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    const [assetRes, deptRes, staffRes] = await Promise.all([
-      supabase.from('assets').select('*, department:departments(*), assigned_profile:profiles!assets_assigned_to_fkey(*)').order('created_at', { ascending: false }),
-      supabase.from('departments').select('*').eq('is_active', true),
-      supabase.from('profiles').select('*').eq('is_active', true),
-    ]);
-    setAssets(assetRes.data ?? []);
-    setDepartments(deptRes.data ?? []);
-    setStaff(staffRes.data ?? []);
-    setLoading(false);
-  }, []);
+    try {
+      const [assetRes, deptRes, staffRes] = await Promise.all([
+        supabase.from('assets').select('*, department:departments(*), assigned_profile:profiles!assets_assigned_to_fkey(*)').order('created_at', { ascending: false }),
+        supabase.from('departments').select('*').eq('is_active', true),
+        supabase.from('profiles').select('*').eq('is_active', true),
+      ]);
+      if (assetRes.error) throw assetRes.error;
+      if (deptRes.error) throw deptRes.error;
+      if (staffRes.error) throw staffRes.error;
+      setAssets(assetRes.data ?? []);
+      setDepartments(deptRes.data ?? []);
+      setStaff(staffRes.data ?? []);
+    } catch (err) {
+      console.error('AssetsPage: Failed to fetch data', err);
+      addToast({ type: 'error', title: 'Failed to load', message: 'Could not load assets data.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleCreate = async () => {
     if (!form.name.trim()) {
@@ -78,27 +87,34 @@ export function AssetsPage() {
       return;
     }
     setSaving(true);
-    await supabase.from('assets').insert({
-      name: form.name.trim(),
-      type: form.type,
-      brand: form.brand.trim() || null,
-      model: form.model.trim() || null,
-      serial_number: form.serial_number.trim() || null,
-      department_id: form.department_id || null,
-      assigned_to: form.assigned_to || null,
-      location: form.location.trim() || null,
-      status: form.status,
-      condition: form.condition,
-      purchase_date: form.purchase_date || null,
-      purchase_cost: form.purchase_cost ? parseFloat(form.purchase_cost) : null,
-      warranty_expiry: form.warranty_expiry || null,
-      notes: form.notes.trim() || null,
-    });
-    addToast({ type: 'success', title: 'Asset created', message: form.name });
-    setSaving(false);
-    setCreate(false);
-    setForm({ name: '', type: 'computer', brand: '', model: '', serial_number: '', department_id: '', assigned_to: '', location: '', status: 'active', condition: 'Good', purchase_date: '', purchase_cost: '', warranty_expiry: '', notes: '' });
-    fetch();
+    try {
+      const { error } = await supabase.from('assets').insert({
+        name: form.name.trim(),
+        type: form.type,
+        brand: form.brand.trim() || null,
+        model: form.model.trim() || null,
+        serial_number: form.serial_number.trim() || null,
+        department_id: form.department_id || null,
+        assigned_to: form.assigned_to || null,
+        location: form.location.trim() || null,
+        status: form.status,
+        condition: form.condition,
+        purchase_date: form.purchase_date || null,
+        purchase_cost: form.purchase_cost ? parseFloat(form.purchase_cost) : null,
+        warranty_expiry: form.warranty_expiry || null,
+        notes: form.notes.trim() || null,
+      });
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Asset created', message: form.name });
+      setCreate(false);
+      setForm({ name: '', type: 'computer', brand: '', model: '', serial_number: '', department_id: '', assigned_to: '', location: '', status: 'active', condition: 'Good', purchase_date: '', purchase_cost: '', warranty_expiry: '', notes: '' });
+      fetchData();
+    } catch (err) {
+      console.error('AssetsPage: Failed to create asset', err);
+      addToast({ type: 'error', title: 'Failed to create', message: 'Could not add asset.' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleMaintenance = async () => {
@@ -107,34 +123,47 @@ export function AssetsPage() {
       return;
     }
     setSaving(true);
-    await supabase.from('asset_maintenance_logs').insert({
-      asset_id: maintForm.asset_id,
-      maintenance_type: maintForm.maintenance_type,
-      description: maintForm.description.trim(),
-      vendor: maintForm.vendor.trim() || null,
-      cost: maintForm.cost ? parseFloat(maintForm.cost) : null,
-      scheduled_at: maintForm.scheduled_at || null,
-      completed_at: maintForm.completed_at || null,
-      next_service_date: maintForm.next_service_date || null,
-      parts_replaced: maintForm.parts_replaced.trim() || null,
-      notes: maintForm.notes.trim() || null,
-      performed_by: profile?.id,
-    });
-    // Update asset status if under maintenance
-    if (maintForm.maintenance_type !== 'routine') {
-      await supabase.from('assets').update({ status: 'under_maintenance' }).eq('id', maintForm.asset_id);
+    try {
+      const { error } = await supabase.from('asset_maintenance_logs').insert({
+        asset_id: maintForm.asset_id,
+        maintenance_type: maintForm.maintenance_type,
+        description: maintForm.description.trim(),
+        vendor: maintForm.vendor.trim() || null,
+        cost: maintForm.cost ? parseFloat(maintForm.cost) : null,
+        scheduled_at: maintForm.scheduled_at || null,
+        completed_at: maintForm.completed_at || null,
+        next_service_date: maintForm.next_service_date || null,
+        parts_replaced: maintForm.parts_replaced.trim() || null,
+        notes: maintForm.notes.trim() || null,
+        performed_by: profile?.id,
+      });
+      if (error) throw error;
+      // Update asset status if under maintenance
+      if (maintForm.maintenance_type !== 'routine') {
+        await supabase.from('assets').update({ status: 'under_maintenance' }).eq('id', maintForm.asset_id);
+      }
+      addToast({ type: 'success', title: 'Maintenance logged', message: 'Maintenance record added' });
+      setMaintOpen(false);
+      setMaintForm({ asset_id: '', maintenance_type: 'routine', description: '', vendor: '', cost: '', scheduled_at: '', completed_at: '', next_service_date: '', parts_replaced: '', notes: '' });
+      fetchData();
+    } catch (err) {
+      console.error('AssetsPage: Failed to log maintenance', err);
+      addToast({ type: 'error', title: 'Failed to log', message: 'Could not add maintenance record.' });
+    } finally {
+      setSaving(false);
     }
-    addToast({ type: 'success', title: 'Maintenance logged', message: 'Maintenance record added' });
-    setSaving(false);
-    setMaintOpen(false);
-    setMaintForm({ asset_id: '', maintenance_type: 'routine', description: '', vendor: '', cost: '', scheduled_at: '', completed_at: '', next_service_date: '', parts_replaced: '', notes: '' });
-    fetch();
   };
 
   const updateStatus = async (a: Asset, newStatus: AssetStatus) => {
-    await supabase.from('assets').update({ status: newStatus }).eq('id', a.id);
-    addToast({ type: 'success', title: 'Status updated', message: `${a.asset_tag} → ${STATUS_CONFIG[newStatus].label}` });
-    fetch();
+    try {
+      const { error } = await supabase.from('assets').update({ status: newStatus }).eq('id', a.id);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Status updated', message: `${a.asset_tag} → ${STATUS_CONFIG[newStatus].label}` });
+      fetchData();
+    } catch (err) {
+      console.error('AssetsPage: Failed to update status', err);
+      addToast({ type: 'error', title: 'Failed to update', message: 'Could not update asset status.' });
+    }
   };
 
   const filtered = assets.filter(a => {
