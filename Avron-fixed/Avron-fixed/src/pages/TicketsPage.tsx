@@ -1,8 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  Plus, Search, RefreshCw, Clock, AlertTriangle, CheckCircle2,
-  MessageSquare, Ticket, Upload, FileText, ImageIcon,
-} from 'lucide-react';
+import { Plus, Search, RefreshCw, Clock, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle2, MessageSquare, Ticket, Upload, FileText, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';

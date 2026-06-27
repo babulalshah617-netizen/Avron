@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, Edit2, Building2, MapPin, RefreshCw, Users } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit2, Building2, MapPin, RefreshCw, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';

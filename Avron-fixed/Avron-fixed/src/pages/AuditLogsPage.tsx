@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, ShieldCheck, Filter, RefreshCw } from 'lucide-react';
+import { Search, ShieldCheck, ListFilter as Filter, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Badge } from '../components/ui/Badge';
 import { Spinner } from '../components/ui/Spinner';

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, RefreshCw, Syringe, AlertTriangle } from 'lucide-react';
+import { Plus, Search, RefreshCw, Syringe, TriangleAlert as AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';

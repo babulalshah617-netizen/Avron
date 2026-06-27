@@ -1,11 +1,5 @@
 import { useState } from 'react';
-import {
-  LayoutDashboard, Users, Building2, BedDouble, Ticket,
-  Bell, ClipboardList, Settings, LogOut, ChevronLeft,
-  ChevronRight, X, Map, ShieldCheck, Activity,
-  Pill, Scan, FlaskConical, Syringe, Package, Truck,
-  HardDrive, ChevronDown, UserCircle,
-} from 'lucide-react';
+import { LayoutDashboard, Users, Building2, BedDouble, Ticket, Bell, ClipboardList, Settings, LogOut, ChevronLeft, ChevronRight, X, Map, ShieldCheck, Activity, Pill, Scan, FlaskConical, Syringe, Package, Truck, HardDrive, ChevronDown, CircleUser as UserCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from '../../contexts/RouterContext';
 import { useNotifications } from '../../contexts/NotificationContext';
