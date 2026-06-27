@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, RefreshCw, Syringe, TriangleAlert as AlertTriangle, Calendar } from 'lucide-react';
+import { Plus, Search, RefreshCw, Syringe, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -168,7 +168,7 @@ export function ChemoPage() {
           <option value="">All Status</option>
           {Object.entries(DEPT_STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <button onClick={fetch} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
+        <button onClick={fetchData} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
       </div>
 
       <div className="card overflow-hidden">

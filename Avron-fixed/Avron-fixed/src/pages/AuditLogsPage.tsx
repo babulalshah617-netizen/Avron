@@ -3,7 +3,7 @@ import { Search, ShieldCheck, Filter, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Badge } from '../components/ui/Badge';
 import { Spinner } from '../components/ui/Spinner';
-import { cn, formatDate } from '../lib/utils';
+import { formatDate } from '../lib/utils';
 import type { AuditLog, AuditAction } from '../types';
 
 const ACTION_META: Record<AuditAction, { label: string; variant: 'success'|'info'|'warning'|'danger'|'neutral' }> = {

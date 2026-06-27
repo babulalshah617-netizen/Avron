@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Mail, Phone, Building2, Shield, Clock, Save, Edit2 } from 'lucide-react';
+import { Mail, Phone, Building2, Shield, Clock, Save, Edit2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';

@@ -6,7 +6,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
 import { Spinner } from '../components/ui/Spinner';
-import { cn, formatDate } from '../lib/utils';
+import { formatDate } from '../lib/utils';
 import { DEPT_STATUS_CONFIG, type RadiologyRequest, type DeptReqStatus, type RadiologyModality } from '../types';
 
 const MODALITIES: { value: RadiologyModality; label: string }[] = [
@@ -70,7 +70,7 @@ export function RadiologyPage() {
         scheduled_at: form.scheduled_at || null, requested_by: profile?.id,
       });
       if (error) throw error;
-      addToast({ type: 'success', title: 'Radiology request created', message: MODALITIES.find(m => m.value === form.modality)?.label });
+      addToast({ type: 'success', title: 'Radiology request created', message: MODALITIES.find(m => m.value === form.modality)?.label ?? form.modality });
       setCreate(false);
       setForm({ patient_name: '', patient_uhid: '', modality: 'xray', body_part: '', clinical_notes: '', contrast: false, scheduled_at: '' });
       fetchData();
@@ -132,7 +132,7 @@ export function RadiologyPage() {
           <option value="">All Status</option>
           {Object.entries(DEPT_STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <button onClick={fetch} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
+        <button onClick={fetchData} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
       </div>
 
       <div className="card overflow-hidden">

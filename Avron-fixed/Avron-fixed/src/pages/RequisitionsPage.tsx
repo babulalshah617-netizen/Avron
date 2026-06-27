@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, ListFilter as Filter, RefreshCw, ArrowRight, ClipboardList, Trash2 } from 'lucide-react';
+import { Plus, Search, RefreshCw, ArrowRight, ClipboardList, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -9,7 +9,7 @@ import { Spinner } from '../components/ui/Spinner';
 import { cn, formatDate } from '../lib/utils';
 import {
   WORKFLOW_STATUS_CONFIG,
-  type Requisition, type RequisitionItem, type Department,
+  type Requisition, type Department,
   type WorkflowStatus, type RequisitionType,
 } from '../types';
 
@@ -70,8 +70,8 @@ export function RequisitionsPage() {
       ]);
       if (reqsRes.error) throw reqsRes.error;
       if (deptsRes.error) throw deptsRes.error;
-      setReqs(reqsRes.data ?? []);
-      setDepts(deptsRes.data ?? []);
+      setReqs((reqsRes.data ?? []) as Requisition[]);
+      setDepts((deptsRes.data ?? []) as Department[]);
     } catch (err) {
       console.error('RequisitionsPage: Failed to fetch data', err);
       addToast({ type: 'error', title: 'Failed to load', message: 'Could not load requisitions.' });

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, RefreshCw, Monitor, Wrench, QrCode, TriangleAlert as AlertTriangle, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Search, RefreshCw, Monitor, Wrench, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -7,7 +7,7 @@ import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
 import { Spinner } from '../components/ui/Spinner';
 import { formatDate } from '../lib/utils';
-import type { Asset, AssetType, AssetStatus, Department, Profile, AssetMaintenanceLog } from '../types';
+import type { Asset, AssetType, AssetStatus, Department, Profile } from '../types';
 
 const ASSET_TYPE_CONFIG: Record<AssetType, { label: string; icon: typeof Monitor }> = {
   computer:       { label: 'Computer',       icon: Monitor },
@@ -247,7 +247,7 @@ export function AssetsPage() {
           <option value="">All Status</option>
           {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <button onClick={fetch} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
+        <button onClick={fetchData} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
       </div>
 
       <div className="card overflow-hidden">

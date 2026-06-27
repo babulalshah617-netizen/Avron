@@ -57,8 +57,8 @@ export function DepartmentManagementPage() {
         .in('role', ['department_head', 'md', 'super_admin'])
         .order('full_name'),
     ]);
-    setDepts(deptsRes.data ?? []);
-    setProfiles(profilesRes.data ?? []);
+    setDepts((deptsRes.data ?? []) as Department[]);
+    setProfiles((profilesRes.data ?? []) as Profile[]);
     setLoading(false);
   }, []);
 

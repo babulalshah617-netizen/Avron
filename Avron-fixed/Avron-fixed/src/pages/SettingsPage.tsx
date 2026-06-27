@@ -1,10 +1,10 @@
-import { Sun, Moon, Shield, Bell, Database, Globe, ChevronRight } from 'lucide-react';
+import { Sun, Moon, Shield, Bell, Database, Globe } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 
 export function SettingsPage() {
-  const { theme, toggleTheme, isDark } = useTheme();
+  const { toggleTheme, isDark } = useTheme();
   const { profile } = useAuth();
 
   if (!profile || profile.role !== 'super_admin') {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Building2, BedDouble, Activity, TrendingUp, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle2, Clock, ArrowUpRight, Layers, Ticket, FileImage, Package, Truck, FlaskConical, Radio, Pill } from 'lucide-react';
+import { Users, Building2, BedDouble, Activity, Clock, ArrowUpRight, Layers, Ticket, FileImage, Package, Truck, FlaskConical, Radio, Pill } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from '../contexts/RouterContext';

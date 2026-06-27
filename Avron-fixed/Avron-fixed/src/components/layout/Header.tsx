@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  Menu, Sun, Moon, Bell, Search, ChevronDown, CheckCheck, X,
+  Menu, Sun, Moon, Bell, Search, ChevronDown, CheckCheck,
   User, Settings, LogOut,
 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';

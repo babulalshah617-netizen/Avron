@@ -6,7 +6,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
 import { Spinner } from '../components/ui/Spinner';
-import { cn, formatDate } from '../lib/utils';
+import { formatDate } from '../lib/utils';
 import type { LabRequest, LabStatus } from '../types';
 
 const SAMPLE_TYPES = ['Blood', 'Urine', 'Swab', 'Tissue', 'Sputum', 'CSF', 'Stool', 'Other'];
@@ -174,7 +174,7 @@ export function LabPage() {
           <option value="">All Status</option>
           {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <button onClick={fetch} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
+        <button onClick={fetchData} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
       </div>
 
       <div className="card overflow-hidden">

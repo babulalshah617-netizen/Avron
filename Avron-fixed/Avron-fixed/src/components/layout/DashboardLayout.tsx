@@ -6,6 +6,7 @@ import type { AppRoute } from '../../types';
 
 const PAGE_TITLES: Record<AppRoute, string> = {
   login: 'Login', 'admin-portal': 'Administration Portal', 'forgot-password': 'Password Recovery',
+  register: 'Staff Registration', 'initialize-md': 'Initialize Medical Director',
   dashboard: 'Dashboard Overview', users: 'User Management', departments: 'Department Management',
   'floor-map': 'Hospital Floor Map', notifications: 'Notifications', 'audit-logs': 'Audit Logs',
   profile: 'My Profile', settings: 'System Settings',

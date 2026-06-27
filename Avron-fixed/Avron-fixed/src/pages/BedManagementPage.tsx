@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { BedDouble, RefreshCw, Search, UserPlus, UserMinus, ArrowRightLeft, Wrench, CircleCheck as CheckCircle2 } from 'lucide-react';
+import { BedDouble, RefreshCw, Search, UserPlus, UserMinus, ArrowRightLeft, Wrench, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';

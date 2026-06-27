@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, RefreshCw, FileImage, FileVideoCamera as FileVideo, FileText, File, ExternalLink, Trash2 } from 'lucide-react';
+import { Plus, Search, RefreshCw, FileImage, Video as FileVideo, FileText, File, ExternalLink, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -160,7 +160,7 @@ export function MediaFilesPage() {
           <option value="">All Types</option>
           {Object.keys(FILE_TYPE_CONFIG).map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        <button onClick={fetch} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
+        <button onClick={fetchData} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
       </div>
 
       {loading ? <div className="flex justify-center py-10"><Spinner size="lg" /></div> :

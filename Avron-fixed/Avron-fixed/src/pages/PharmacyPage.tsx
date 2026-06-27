@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, RefreshCw, Pill, CircleCheck as CheckCircle2, Circle as XCircle } from 'lucide-react';
+import { Plus, Search, RefreshCw, Pill } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
 import { Spinner } from '../components/ui/Spinner';
-import { cn, formatDate } from '../lib/utils';
+import { formatDate } from '../lib/utils';
 import { DEPT_STATUS_CONFIG, type DrugRequest, type DeptReqStatus } from '../types';
 
 const STATUS_NEXT: Partial<Record<DeptReqStatus, DeptReqStatus>> = {
@@ -130,7 +130,7 @@ export function PharmacyPage() {
           <option value="">All Status</option>
           {Object.entries(DEPT_STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <button onClick={fetch} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
+        <button onClick={fetchData} className="btn-secondary flex-shrink-0"><RefreshCw size={15} /></button>
       </div>
 
       <div className="card overflow-hidden">

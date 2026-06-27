@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, CircleCheck as CheckCircle2, Clock, Search, RefreshCw, Activity, ArrowRight } from 'lucide-react';
+import { Plus, CheckCircle2, Clock, Search, RefreshCw, Activity, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';

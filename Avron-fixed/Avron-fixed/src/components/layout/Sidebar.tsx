@@ -4,7 +4,7 @@ import {
   Bell, ClipboardList, Settings, LogOut, ChevronLeft,
   ChevronRight, X, Map, ShieldCheck, Activity,
   Pill, Scan, FlaskConical, Syringe, Package, Truck,
-  HardDrive, ChevronDown, Zap, UserCircle,
+  HardDrive, ChevronDown, UserCircle,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from '../../contexts/RouterContext';

@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Plus, Search, Filter, RefreshCw, Clock, AlertTriangle, CheckCircle2,
-  MessageSquare, ArrowUpCircle, X, Ticket, User, Upload, FileText, ImageIcon,
+  Plus, Search, RefreshCw, Clock, AlertTriangle, CheckCircle2,
+  MessageSquare, Ticket, Upload, FileText, ImageIcon,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { Modal } from '../components/ui/Modal';
-import { Badge } from '../components/ui/Badge';
 import { Spinner } from '../components/ui/Spinner';
 import { cn, formatDate, getInitials } from '../lib/utils';
 import {
@@ -90,9 +89,9 @@ export function TicketsPage() {
       supabase.from('departments').select('id,name').eq('is_active', true).order('name'),
       supabase.from('profiles').select('id,full_name,role,is_active').eq('is_active', true).order('full_name'),
     ]);
-    setTickets(tkRes.data ?? []);
-    setDepts(dpRes.data ?? []);
-    setStaff(stRes.data ?? []);
+    setTickets((tkRes.data ?? []) as ITicket[]);
+    setDepts((dpRes.data ?? []) as Department[]);
+    setStaff((stRes.data ?? []) as Profile[]);
     setLoading(false);
   }, []);
 

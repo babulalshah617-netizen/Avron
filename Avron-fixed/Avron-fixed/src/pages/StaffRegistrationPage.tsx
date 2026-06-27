@@ -33,7 +33,7 @@ export function StaffRegistrationPage() {
 
   useEffect(() => {
     supabase.from('departments').select('id,name,floor').eq('is_active', true).order('name').then(({ data }) => {
-      setDepartments(data ?? []);
+      setDepartments((data ?? []) as Department[]);
     });
   }, []);
 

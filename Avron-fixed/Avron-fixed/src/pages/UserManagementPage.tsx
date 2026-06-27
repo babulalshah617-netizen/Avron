@@ -50,8 +50,8 @@ export function UserManagementPage() {
         .eq('is_active', true)
         .order('floor'),
     ]);
-    setUsers(usersRes.data ?? []);
-    setDepts(deptsRes.data ?? []);
+    setUsers((usersRes.data ?? []) as Profile[]);
+    setDepts((deptsRes.data ?? []) as Department[]);
     setLoading(false);
   }, []);
 

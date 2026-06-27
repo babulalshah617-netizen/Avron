@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MapPin, Building2, Users, Activity, ChevronDown, ChevronUp } from 'lucide-react';
+import { Building2, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Badge } from '../components/ui/Badge';
 import { Spinner } from '../components/ui/Spinner';
